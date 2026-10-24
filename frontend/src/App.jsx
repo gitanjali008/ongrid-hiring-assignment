@@ -11,6 +11,12 @@ import {
 
 const API = "/api";
 
+// YYYY-MM-DD in the user's local timezone (toISOString() would give the UTC date).
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 function App() {
   const [categories, setCategories] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -50,16 +56,17 @@ function App() {
     const r = await fetch(
       `${API}/reports/monthly?year=${year}&month=${month}`
     );
-    const data = await r.json();
-    setMonthlyByCat(data.category_totals_for_chart || []);
+    const data = await r.json().catch(() => ({}));
+    setMonthlyByCat(r.ok ? data.category_totals_for_chart || [] : []);
   }, [year, month]);
 
   const loadTrend = useCallback(async () => {
     setChartError(null);
     try {
       const r = await fetch(`${API}/reports/monthly-trend`);
+      if (!r.ok) throw new Error(`Trend request failed (${r.status})`);
       const data = await r.json();
-      const series = data.monthly_series.map((row) => ({
+      const series = (data.monthly_series || []).map((row) => ({
         month: row.month,
         total: row.total,
       }));
@@ -102,9 +109,7 @@ function App() {
   const addExpense = async (e) => {
     e.preventDefault();
     setMsg("");
-    const dateStr =
-      form.expense_date ||
-      new Date().toISOString().slice(0, 10);
+    const dateStr = form.expense_date || localToday();
     const r = await fetch(`${API}/expenses`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -133,8 +138,13 @@ function App() {
     loadTrend();
   };
 
-  const pageTotal = expenses.reduce((a, e) => a + e.amount, 0);
-  const totalPages = Math.max(1, Math.floor(total / perPage));
+  const pageTotal = expenses.reduce((a, e) => a + (parseFloat(e.amount) || 0), 0);
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
+
+  // Deleting the last row on the last page would otherwise leave us on an empty page.
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   return (
     <>
@@ -242,7 +252,7 @@ function App() {
           </div>
         </div>
         <p className="muted">
-          Sum on this page (strings): <strong>{String(pageTotal)}</strong>
+          Sum on this page: <strong>{pageTotal.toFixed(2)}</strong>
         </p>
         <div className="chart-wrap">
           <ResponsiveContainer width="100%" height="100%">
@@ -253,7 +263,7 @@ function App() {
               <Tooltip
                 contentStyle={{ background: "#1a1f26", border: "1px solid #38444d" }}
               />
-              <Bar dataKey="value" fill="#1d9bf0" name="Total" />
+              <Bar dataKey="amt" fill="#1d9bf0" name="Total" />
             </BarChart>
           </ResponsiveContainer>
         </div>

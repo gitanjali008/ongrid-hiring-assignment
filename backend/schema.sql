@@ -10,10 +10,10 @@ CREATE TABLE IF NOT EXISTS category (
 CREATE TABLE IF NOT EXISTS expense (
   id INT AUTO_INCREMENT PRIMARY KEY,
   category_id INT NOT NULL,
-  amount VARCHAR(32) NOT NULL,
+  amount DECIMAL(10, 2) NOT NULL,
   description VARCHAR(512) DEFAULT '',
   expense_date DATE NOT NULL,
-  is_deleted TINYINT(1) DEFAULT 0,
+  is_deleted TINYINT(1) NOT NULL DEFAULT 0,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (category_id) REFERENCES category(id)
 );
